@@ -2,6 +2,7 @@ package gometal
 
 import (
 	"fmt"
+	"github.com/chiefy/gometal/gometal/file"
 	"os"
 	"path/filepath"
 )
@@ -9,7 +10,7 @@ import (
 type Adapter func(*GoMetal) error
 
 type GoMetal struct {
-	Files       []os.FileInfo
+	Files       []*file.GoMetalFile
 	Middlewares []Adapter
 	Metadata    map[string]string
 	Source      string
@@ -17,61 +18,57 @@ type GoMetal struct {
 	Clean       bool
 }
 
-func MassageSourceDir(sourceDir string) (string, error) {
-	var sd string
+func MassageDirLocation(dirName string) (string, error) {
+	var d string
 	var err error
 
-	if len(sourceDir) == 0 {
-		return sd, fmt.Errorf("no source directory given")
+	if len(dirName) == 0 {
+		return d, fmt.Errorf("no source directory given")
 	}
-	if filepath.IsAbs(sourceDir) {
-		sd = filepath.Clean(sourceDir)
+	if filepath.IsAbs(dirName) {
+		d = filepath.Clean(dirName)
 	} else {
-		sd, err = filepath.Abs(sourceDir)
+		d, err = filepath.Abs(dirName)
 		if err != nil {
-			return sd, fmt.Errorf("bad relative path: '%v'", sourceDir)
+			return d, fmt.Errorf("bad relative path: '%v'", dirName)
 		}
 	}
-	return sd, nil
+	return d, nil
 }
 
-func NewGoMetal(sourceDir string) (*GoMetal, error) {
-	fixedDir, err := MassageSourceDir(sourceDir)
+func NewGoMetal(sourceDir string, destDir string) (*GoMetal, error) {
+	sd, err := MassageDirLocation(sourceDir)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := os.Stat(fixedDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("Could not access directory '%s'", fixedDir)
+
+	if len(destDir) == 0 {
+		destDir = "dest"
 	}
+	dd, err := MassageDirLocation(destDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := os.Stat(sd); os.IsNotExist(err) {
+		return nil, fmt.Errorf("source dir '%s' is inaccessible", sd)
+	}
+	// TODO: if destination dir doesn't exist, create it
+	if _, err := os.Stat(dd); os.IsNotExist(err) {
+		return nil, fmt.Errorf("destination dir '%s' is inaccessible", dd)
+	}
+
 	gm := &GoMetal{
-		Source:      fixedDir,
+		Source:      sd,
+		Dest:        dd,
 		Clean:       true,
 		Middlewares: make([]Adapter, 0),
 	}
-	if err := gm.LoadFiles(); err != nil {
-		return nil, fmt.Errorf("Could not read files in directory: '%v'", gm.Source)
+
+	if gm.Files, err = file.LoadAllFiles(sd); err != nil {
+		return nil, err
 	}
 	return gm, nil
-}
-
-func (gm *GoMetal) LoadFiles() error {
-	d, err := os.Open(gm.Source)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	defer d.Close()
-	fi, err := d.Readdir(-1)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	for _, fi := range fi {
-		if fi.Mode().IsRegular() {
-			gm.Files = append(gm.Files, fi)
-		}
-	}
-	return nil
 }
 
 func (gm *GoMetal) Use(mw Adapter) {

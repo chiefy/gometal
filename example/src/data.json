@@ -1,0 +1,9 @@
+{
+	"foo": "bar"
+	"awesome": true,
+	"foods" : [
+		"tacos",
+		"burritos",
+		"chimichangas"
+	]
+}

@@ -12,7 +12,10 @@ build:
 run:
 	@go run ./main.go
 
-
 .PHONY: test
 test:
 	@go test $(TEST)
+
+.PHONY: example
+example:
+	@cd example && go run ./main.go
